@@ -2,7 +2,6 @@
 #
 # We use:
 # * Pandoc (Haskell) to convert all Markdown into either generated HTML or .rst files.
-# * PlantUML (Java) to convert UML diagrams to SVG images.
 #
 
 FROM alpine:3.10
@@ -25,10 +24,8 @@ ENV PERSISTENT_DEPS \
     ttf-droid \
     ttf-droid-nonlatin
 
-ENV PLANTUML_VERSION 1.2019.8
-ENV PLANTUML_DOWNLOAD_URL https://sourceforge.net/projects/plantuml/files/plantuml.$PLANTUML_VERSION.jar/download
 
-ENV PANDOC_VERSION 2.7.3
+ENV PANDOC_VERSION 2.9.2.1
 ENV PANDOC_DOWNLOAD_URL https://hackage.haskell.org/package/pandoc-$PANDOC_VERSION/pandoc-$PANDOC_VERSION.tar.gz
 ENV PANDOC_ROOT /usr/local/pandoc
 
@@ -38,20 +35,20 @@ ENV PATH $PATH:$PANDOC_ROOT/bin
 RUN apk upgrade --update && \
     apk add --virtual .build-deps $BUILD_DEPS && \
     apk add --virtual .persistent-deps $PERSISTENT_DEPS && \
-    curl -fsSL "$PLANTUML_DOWNLOAD_URL" -o /usr/local/plantuml.jar && \
-    chmod a+r /usr/local/plantuml.jar && \
-    mkdir -p /pandoc-build \
-             /var/docs && \
-    cd /pandoc-build && \
-    curl -fsSL "$PANDOC_DOWNLOAD_URL" | tar -xzf - && \
-    cd pandoc-$PANDOC_VERSION && \
-    cabal update && \
-    cabal install --only-dependencies && \
-    cabal configure --prefix=$PANDOC_ROOT && \
-    cabal build && \
-    cabal copy && \
-    cd / && \
-    rm -Rf /pandoc-build \
+    mkdir -p /var/docs
+
+WORKDIR /pandoc-build
+RUN curl -fsSL "$PANDOC_DOWNLOAD_URL" | tar -xzf -
+
+WORKDIR /pandoc-build/pandoc-$PANDOC_VERSION
+RUN cabal new-update
+RUN cabal new-install --only-dependencies
+RUN cabal new-configure --prefix=$PANDOC_ROOT
+RUN cabal new-build
+RUN cabal new-copy
+
+WORKDIR /
+RUN rm -Rf /pandoc-build \
            $PANDOC_ROOT/lib \
            /root/.cabal \
            /root/.ghc && \
@@ -60,7 +57,6 @@ RUN apk upgrade --update && \
     adduser -u 82 -D -S -G pandoc pandoc && \
     apk del .build-deps
 
-COPY plantuml /usr/local/bin/
 
 # Set to non root user
 USER pandoc
